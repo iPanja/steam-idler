@@ -5,8 +5,6 @@
 #include <stdbool.h>
 
 const char *APP_SECTION_REGEX = "\"apps\"\\{(.+?)\\}";
-const char *APP_HERO = "https://steamcdn-a.akamaihd.net/steam/apps/%lu/library_hero.jpg";
-
 
 //https://stackoverflow.com/questions/6218325/how-do-you-check-if-a-directory-exists-on-windows-in-c
 bool FileExists(LPCTSTR szPath){
@@ -22,21 +20,24 @@ bool DirectoryExists(LPCTSTR szPath){
          (dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 
-//https://stackoverflow.com/questions/13084236/function-to-remove-spaces-from-string-char-array-in-c
-char *cleanup(char *input){
+//Remove spaces, newlines, tabs, and carriage returns to compact the input
+//Returns compacted result
+char *compact(char *input){
     int i, j;
     char *output = input;
     for(i = 0, j = 0; i < strlen(input); i++, j++){
-        if(!(input[i] == ' ' || input[i] == '\n' || input[i] == '\t'))
-            output[j] = input[i];
-        else
+        if(input[i] == ' ' || input[i] == '\n' || input[i] == '\t' || input[i] == '\r')
             j--;
+        else
+            output[j] = input[i];
     }
     output[j] = 0;
     return output;
 }
 
-void get_steam_master_library(char *buffer){
+// [WINDOWS] Locates the libraryfolders.vdf file which contains all installed APP IDs
+//Returns success status
+bool locate_steam_master_library_file(char *buffer){
     SHGetSpecialFolderPath(
         0,
         buffer,
@@ -44,11 +45,12 @@ void get_steam_master_library(char *buffer){
         FALSE
     );
     snprintf(buffer, MAX_PATH, "%s%s", buffer, "\\Steam\\steamapps\\libraryfolders.vdf");
-    if(!FileExists(buffer)){
-        printf("Steam master library file does not exist!\n\tLooked for it at: %s\n", buffer);
-    }
+    return FileExists(buffer);
 }
-void get_steam_library_cache_folder(char *buffer){
+
+// [WINDOWS] Locates the steam cache folder which contains all icon and hero images for installed games\
+//Returns success status
+bool locate_steam_cache_folder(char *buffer){
     SHGetSpecialFolderPath(
         0,
         buffer,
@@ -56,49 +58,42 @@ void get_steam_library_cache_folder(char *buffer){
         FALSE
     );
     snprintf(buffer, MAX_PATH, "%s%s", buffer, "\\Steam\\appcache\\librarycache\\");
-    if(!DirectoryExists(buffer)){
-        printf("Steam library cache folder does not exist!\n\tLooked for it at: %s\n", buffer);
-    }
+    return DirectoryExists(buffer);
 }
-void read_entire_file(FILE *file, char **buffer){
+
+//Reads the entire file into buffer
+bool read_entire_file(FILE *file, char **buffer){
     fseek(file, 0, SEEK_END);
     long length = ftell(file);
-    fseek (file, 0, SEEK_SET);
-    *buffer = malloc(length+1); //Add extra space for terminator
+    *buffer = malloc(length + 1);
+    fseek(file, 0, SEEK_SET);
     if(!*buffer){
-        printf("Couldn't allocate memory to load vdf file!");
+        fprintf(stderr, "[ERROR] Could not read file (read_entire_file)");
         fclose(file);
-        return;
+        return false;
     }
     fread(*buffer, 1, length, file);
-    (*buffer)[length] = '\0'; //Add terminator
+    (*buffer)[length] = '\0';
+    return true;
 }
 
-void dump(unsigned long *array, int length){
-    for(int i = 0; i < length; i++){
-        printf("%d: %lu\n", i, array[i]);
-    }
-}
-
-
-//https://stackoverflow.com/questions/2577193/how-do-you-capture-a-group-with-regex
-//https://gist.github.com/ianmackinnon/3294587
-void parse_app_ids(char *contents, unsigned long **app_ids, int *app_ids_count){
+//Read from contents (should be compacted) and extract the list of app_ids (unsigned longs)
+//Returns success status
+bool parse_app_ids(char *contents, unsigned long **app_ids, int *app_ids_count){
     //Use regex to get list of alternating app ids inside the "app"{ sections
-    //REGEX EXPESSION: "apps"{(.*?)} 
-    //  https://regex101.com/r/bKNGsI/1
     //FORMAT: APP_ID        SOME_RANDOM_NUMBER
-    size_t maxMatches = 6;
-    size_t maxGroups = 6;
-
+    size_t maxMatches = 6; //Some arbitrary number
+    size_t maxGroups = 6;  //Some arbitrary number
     regex_t regexCompiled;
-    regmatch_t groupArray[6];
+    regmatch_t groupArray[maxGroups];
+
+    //Compile regular expression
     int err = regcomp(&regexCompiled, APP_SECTION_REGEX, REG_EXTENDED);
     if(err){
         char buffer[100];
         regerror(err, &regexCompiled, buffer, 100);
-        printf("Could not compile regular expression: %s\n", buffer);
-        return;
+        fprintf(stderr, "[ERROR] Could not compile regular expression: %s\n", buffer);
+        return false;
     }
     unsigned int m = 0;
     char *cursor = contents;
@@ -121,27 +116,20 @@ void parse_app_ids(char *contents, unsigned long **app_ids, int *app_ids_count){
             char cursorCopy[length];
             strcpy(cursorCopy, cursor);
             cursorCopy[groupArray[g].rm_eo] = 0;
-            /*
-            if(g == 1)
-                printf("Match %u, Group %u: [%2u-%2u]: %s (len: %d)\n",
-                    m, g, groupArray[g].rm_so, groupArray[g].rm_eo,
-                    cursorCopy + groupArray[g].rm_so, );
-            */
-           if(g == 1){
-               strncat(final, (cursorCopy + groupArray[g].rm_so), length);
-           }
+            if(g == 1){
+                strncat(final, (cursorCopy + groupArray[g].rm_so), length);
+            }
         }
         cursor += offset;
     }
-    //Parse the final str, gets next subset split by dobule quotation (")
-    char *token = strtok(final, "\"");
+    //Parse the final str for every other number, which is an APP ID
+    char *token = strtok(final, "\""); //Gets the next subset split by double quotation
     unsigned long *temp;
     bool grab = true;
     *app_ids = NULL; //PARAMETER
     *app_ids_count = 0;
     //Cycle through the final str until we hit the end
     while(token != NULL){
-        //printf("%s\t", token);
         //Ignore if token is just a '{'
         if(strcmp(token, "}") == 0){
             token = strtok(NULL, "\"");
@@ -151,11 +139,11 @@ void parse_app_ids(char *contents, unsigned long **app_ids, int *app_ids_count){
             //Increase size of array
             temp = realloc(*app_ids, ++(*app_ids_count) * sizeof(*app_ids));
             if(!temp){
-                printf("realloc failed\n");
-                return;
+                fprintf(stderr, "[ERROR] realloc failed\n");
+                return false;
             }
             *app_ids = temp;
-            //Set APP ID into new (last) slot
+            //Store new APP ID
             (*app_ids)[*app_ids_count-1] = strtoul(token, NULL, 0);
         }
         //Get next token for the next loop iteration
@@ -163,97 +151,94 @@ void parse_app_ids(char *contents, unsigned long **app_ids, int *app_ids_count){
         grab = !grab;
     }
     regfree(&regexCompiled);
+
+    return true;
 }
 
+//One stop function to get the list of installed APP IDs
+//Returns success status
+bool get_installed_app_ids(unsigned long **app_ids, int *app_ids_count){
+    //Locate library file
+    char library_file_path[MAX_PATH];
+    if(!locate_steam_master_library_file(library_file_path)){
+        fprintf(stderr, "[ERROR] Could not locate steam master library file (get_installed_app_ids)\n");
+        return false;
+    }
 
-void get_installed_app_ids(unsigned long **app_ids, int *app_ids_count){
-    char pf[MAX_PATH];
-    get_steam_master_library(pf);
-
-    //Read contents of libraryfolders.vdf which contains all installed APP IDs
-    FILE *lib = fopen(pf, "r");
-    if(lib == NULL){
-        printf("Steam master library file could not be located!\n");
-        return;
+    //Read contents of file into memory and compact it (remove spaces, newlines, etc for regex)
+    FILE *library_file = fopen(library_file_path, "r");
+    if(library_file == NULL){
+        fprintf(stderr, "[ERROR] Could not open steam master library file (get_installed_app_ids)\n");
+        return false;
     }
     char *buffer;
-    read_entire_file(lib, &buffer);
-    buffer = cleanup(buffer);
-    
-    //Use regex/magic to get the APP IDs from the file
-    parse_app_ids(buffer, app_ids, app_ids_count);
-    
-    //CLEANUP
-    fclose(lib);
+    if(!read_entire_file(library_file, &buffer)){
+        fprintf(stderr, "[ERROR] read_entire_file failed (get_installed_app_ids)\n");
+        return false;
+    }
+    buffer = compact(buffer);
+
+    //Locate the sections containing the APP IDs using regex
+    if(!parse_app_ids(buffer, app_ids, app_ids_count)){
+        fprintf(stderr, "[ERROR] Could not parse APP IDs from compacted file (get_installed_app_ids)\n");
+        return false;
+    }
+
+    //Cleanup
+    fclose(library_file);
     free(buffer);
+
+    return true;
 }
 
-bool get_game_hero(unsigned long app_id, char **library_hero){
-    //Check if file already exists in C:\Program Files (x86)\Steam\appcache\librarycache
-    static char app_cache[MAX_PATH] = {'\0'};
-    *library_hero = malloc(MAX_PATH);
-    //Use static so we only attempt to locate the steam installation folder once per program run
-    //It's just unncecessary to do so multiple times
-    if(app_cache[0] == '\0'){
-        char buf[MAX_PATH];
-        get_steam_library_cache_folder(buf);
-        printf("APP_CACHE: %s\n\n", buf);
-        strcpy(app_cache, buf);
-    }
-    //Assemble library hero image file location
-    snprintf(*library_hero, MAX_PATH, "%s%lu_library_hero.jpg", app_cache, app_id);
-    //Filename will be: <app_id>_library_hero.jpg
-    if(FileExists(*library_hero)){
-        return true;
-    }else{
-        *library_hero = '\0';
-        printf("%lu Library hero NOT found!\n\t>Looked for it at: %s\n", app_id, *library_hero);
-        return false;
-    }
-}
-bool get_game_icon(unsigned long app_id, char **library_icon){
-    //Check if file already exists in C:\Program Files (x86)\Steam\appcache\librarycache
-    static char app_cache[MAX_PATH] = {'\0'};
-    *library_icon = malloc(MAX_PATH);
-    //Use static so we only attempt to locate the steam installation folder once per program run
-    //It's just unncecessary to do so multiple times
-    if(app_cache[0] == '\0'){
-        char buf[MAX_PATH];
-        get_steam_library_cache_folder(buf);
-        printf("APP_CACHE: %s\n\n", buf);
-        strcpy(app_cache, buf);
-    }
-    //Assemble library hero image file location
-    snprintf(*library_icon, MAX_PATH, "%s%lu_icon.jpg", app_cache, app_id);
-    //Filename will be: <app_id>_library_hero.jpg
-    if(FileExists(*library_icon)){
-        return true;
-    }else{
-        *library_icon = '\0';
-        printf("%lu Library hero NOT found!\n\t>Looked for it at: %s\n", app_id, *library_icon);
-        return false;
-    }
-}
-
-/*
-int main(){
-    unsigned long *app_ids; //Array of Steam installed APP_IDs
-    int app_ids_count; //Length of app_ids;
-    get_installed_app_ids(&app_ids, &app_ids_count);
-
-    printf("Installed apps: %d\n", app_ids_count);
-    for(int i = 0; i < app_ids_count; i++){
-        printf("%lu:\t\t", app_ids[i]);
-        char *hero_filepath;
-        if(get_game_hero(app_ids[i], &hero_filepath)){
-            printf("hero located! (%s)\n", hero_filepath);
-        }else{
-            printf("hero NOT found!\n");
+// [WINDOWS] Locates the APP ID's hero image (wide display image) for the specified APP ID
+//Returns success status
+bool locate_app_id_hero_path(unsigned long app_id, char **library_hero_path){
+    //Use static so this method only attempts to locate the library cache once per runtime
+    static char app_cache_folder_path[MAX_PATH] = {'\0'};
+    if(app_cache_folder_path[0] == '\0'){
+        if(!locate_steam_cache_folder(app_cache_folder_path)){
+            fprintf(stderr, "[ERROR] Could not locate steam cache folder (locate_app_id_hero_path)\n");
+            return false;
         }
-
-        free(hero_filepath);
     }
 
-    return 0;
+    //Compile path to where we expect the library hero image to be located
+    *library_hero_path = malloc(MAX_PATH);
+    snprintf(*library_hero_path, MAX_PATH, "%s%lu_library_hero.jpg", app_cache_folder_path, app_id);
+
+    //Verify if that file exists
+    if(!FileExists(*library_hero_path)){
+        *library_hero_path = '\0';
+        fprintf(stderr, "[ERROR] APP ID's hero image does not exist (locate_app_id_hero_path)\n");
+        return false;
+    }
+
+    return true;
 }
-*/
+
+// [WINDOWS] Locates the APP ID's icon (16x16 pixels) for the specified APP ID
+//Returns success status
+bool locate_app_id_icon_path(unsigned long app_id, char **library_hero_path){
+    //Use static so this method only attempts to locate the library cache once per runtime
+    static char app_cache_folder_path[MAX_PATH] = {'\0'};
+    if(app_cache_folder_path[0] == '\0'){
+        if(!locate_steam_cache_folder(app_cache_folder_path)){
+            fprintf(stderr, "[ERROR] Could not locate steam cache folder (locate_app_id_icon_path)\n");
+            return false;
+        }
+    }
+
+    //Compile path to where we expect the library hero image to be located
+    *library_hero_path = malloc(MAX_PATH);
+    snprintf(*library_hero_path, MAX_PATH, "%s%lu_icon.jpg", app_cache_folder_path, app_id);
+
+    //Verify if that file exists
+    if(!FileExists(*library_hero_path)){
+        *library_hero_path = '\0';
+        fprintf(stderr, "[ERROR] APP ID's icon image does not exist (locate_app_id_icon_path)\n");
+        return false;
+    }
+
+    return true;
+}

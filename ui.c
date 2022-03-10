@@ -128,7 +128,7 @@ void idle_game(unsigned long app_id){
         //                      Image
         //                      Label (Game: APP_ID)
         //              OVERLAY: Button
-        if(get_game_hero(app_id, &hero_path)){
+        if(locate_app_id_hero_path(app_id, &hero_path)){
                 set_hero(hero_image, hero_path);
                 gtk_container_add(GTK_CONTAINER(frame), GTK_WIDGET(hero_image));
                 gtk_container_add(GTK_CONTAINER(overlay), GTK_WIDGET(frame));
@@ -173,7 +173,7 @@ G_MODULE_EXPORT void on_mw_add_game_button_clicked(){
                 unsigned long id = library[i];
                 GtkImage *image = GTK_IMAGE(gtk_image_new());
                 char *icon_path;
-                if(get_game_icon(id, &icon_path)){
+                if(locate_app_id_icon_path(id, &icon_path)){
                         set_icon(image, icon_path);
                         //gtk_list_box_prepend(listbox, GTK_WIDGET(image));
                         gtk_list_box_insert(listbox, GTK_WIDGET(image), i);
