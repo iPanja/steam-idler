@@ -4,5 +4,7 @@ release/*
 redistributable_bin/linux32/*
 redistributable_bin/linux64/*
 redistributable_bin/osx/*
+redistributable_bin/steam_api.dll
+redistributable_bin/steam_api.lib
 idler.exe
 si.exe
