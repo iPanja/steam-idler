@@ -59,15 +59,19 @@
 After a couple gruesome hours, I have figured out to compile a GTK+ project.
 To install GTK in the first place, follow [these](https://www.gtk.org/docs/installations/windows) instructions.
 
+Currently, the UI will only compile/work on Windows machines. UNIX users can run the steam-idler (`./si` executable) from the command-line using: `./si <app_id> <duration>`. Duration can be set to `-1` to run forever.
+
 ### Prerequisites
 
-After following the aforementioned instructions with MSYS2, all the prerequisites should be installed.
+After following the aforementioned instructions with MSYS2, all the prerequisites should be installed. If the program appears to crash at any point, it is probably due to a missing DLL (goodluck).
 
 ### Build
 #### Using the makefile
-```
-make
-```
+
+Running `make` will automatically run the appropriate platform-specific make file, however only the Windows makefile will compile the UI (UNIX support will be implemented in the future).
+
+The makefile will compile the entire project, bundle the GTK binaries (listed in dependencies.txt), and copy over the Steam API dll/lib into the subfolder: `release/`.
+
 #### Build yourself
 1. Get the required DLLs (default: dependencies.txt) using [ListDLLs](https://docs.microsoft.com/en-us/sysinternals/downloads/listdlls) in **POWERSHELL**
 * If this does not work, after launching the program get it's process ID via task manager and supply that number instead of `idler.exe`
@@ -80,6 +84,12 @@ for file in `cat dependencies.txt`; do mkdir -p ".\release\bin" && cp "$$file" .
 ```
 3. Get the appropriate Steam API DLL and place it in the same folder as the executable. Windows ones are located in `redistributable_bin/win64`
 
+4. Compile
+```
+gcc steam_idler.c -o release/si "redistributable_bin/win64/steam_api64.lib"
+gcc `pkg-config --cflags gtk+-3.0` ui.c -o release/idler `pkg-config --libs gtk+-3.0` -lregex -Wl,--export-all-symbols -mwindows
+```
+
 <p align="right">(<a href="#top">back to top</a>)</p>
 
 
@@ -89,6 +99,8 @@ for file in `cat dependencies.txt`; do mkdir -p ".\release\bin" && cp "$$file" .
 
 Run `idler.exe`!
 
+If for some reason it does not open up, or it appears to crash after clicking "ADD GAME" you are probably missing a required DLL. It can be hard to debug which one it is, so refer back to the dependencies.txt file first.
+
 <p align="right">(<a href="#top">back to top</a>)</p>
 
 
@@ -96,10 +108,10 @@ Run `idler.exe`!
 <!-- ROADMAP -->
 ## Roadmap
 After taking a break from dealing with building a GTK project...
-- [ ] Cleanup library.c
-- [ ] Add linux support in creating/killing the new process
+- [x] Cleanup library.c
+- [ ] Add linux support in creating/killing the new process (`ui.c`)
 - [ ] Re-format the add a game window/list
-    - [ ] Get game name from app id
+- [ ] Get an app's name from its APP ID to make the application more user-friendly
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
@@ -109,6 +121,7 @@ After taking a break from dealing with building a GTK project...
 ## Acknowledgments
 * [Sleep Icon (Fuzzee)](https://www.flaticon.com/free-icons/sleep)
 * [Fake steam process method (Miouyouyou)](https://gist.github.com/Miouyouyou/2543eb6fb66d7682c85b42f1b4c4d381#file-steam-idler-c)
+* [Locate DLLs for GTK building (bradrn)](https://stackoverflow.com/questions/49092784/how-to-distribute-a-gtk-application-on-windows)
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
