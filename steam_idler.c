@@ -1,3 +1,8 @@
+/*
+ * Works on both Windows and UNIX, however the UI tool only works on Windows at the moment
+ * To run this on a unix system compile this file and copy and paste your desired libsteam_api.so from /redistributable_bin/ into the same folder as the compiled executable
+ * gcc steam_idler.c -o idler -Wall "libsteam_api.so"
+*/
 //idler.exe <game_id> <duration (milliseconds)>
 
 #ifdef __unix__
