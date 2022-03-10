@@ -1,0 +1,5 @@
+CC=gcc
+LDFLAGS= "redistributable_bin/linux64/libsteam_api.so" -Wl,-rpath='./redistributable_bin/linux64/'
+
+steam_idler: steam_idler.c
+	gcc steam_idler.c -o idler -Wall $(LDFLAGS)

@@ -1,0 +1,16 @@
+#Run using C:/msys64/mingw64 to be in the correct environment so that pkg-config will work
+#For release (to hide the cmd prompt window) use -mwindows
+#ldd release/idler.exe | grep '\/mingw.*\.dll' -o | xargs -I{} cp "{}" ./release/bin/
+#ldd release/idler.exe | grep '\/mingw64\/bin\/.*dll' -o | xargs -I{} cp "{}" ./release/bin/
+
+CC=gcc
+CFLAGS = `pkg-config --cflags gtk+-3.0`
+INC = `pkg-config --libs gtk+-3.0` -lregex
+
+steam_idler: steam_idler.c ui.c
+	mkdir -p .\release
+	cp ./redistributable_bin/win64/* ./release/
+	cp ui.glade ./release/
+	gcc steam_idler.c -o release/si "redistributable_bin/win64/steam_api64.lib"
+	gcc $(CFLAGS) ui.c -o release/idler $(INC) -Wl,--export-all-symbols -mwindows
+	for file in `cat dependencies.txt`; do mkdir -p ".\release\bin" && cp "$$file" ./release/bin/; done
