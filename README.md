@@ -55,7 +55,7 @@
 ## Getting Started
 
 ### Windows
-Download the newest release (or build yourself) and launch `idler.exe`. The program will automatically scan your steam library allowing you to choose what games to idle in the "ADD GAME" menu. Your selected games will idle until you either remove them (by clicking on the game's artwork as seen in the picture above) or close the program.
+Download the newest release (or build yourself) and launch `idler.exe`. The program will automatically scan your steam library allowing you to choose what games to idle in the "Add Game" menu. Your selected games will idle until you either remove them (by clicking on the game's artwork as seen in the picture above) or close the program.
 
 ### UNIX
 
