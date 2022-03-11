@@ -49,8 +49,6 @@
     <img src="images/screencap2.png" alt="Screenshot of application">
 </div>
 
-<p align="right">(<a href="#top">back to top</a>)</p>
-
 
 
 <!-- GETTING STARTED -->
@@ -79,12 +77,19 @@ The makefile will compile the entire project, bundle the GTK binaries (listed in
 .\tools\Listdlls.exe idler.exe > dependencies.txt
 ```
 2. Copy the required DLLs over
+* This step also copies over some library files
 ```
-for file in `cat dependencies.txt`; do mkdir -p ".\release\bin" && cp "$$file" ./release/bin/; done
+for file in `cat dependencies.txt`; do cp "$$file" ./release/; done
 ```
-3. Get the appropriate Steam API DLL and place it in the same folder as the executable. Windows ones are located in `redistributable_bin/win64`
+3. Move the library files over into their proper structure
+```
+mkdir -p .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders
+cp ./release/libpixbufloader-jpeg.dll ./release/lib/gdk-pixbuf-2.0/2.10.0/loaders/
+cp ./release/loaders.cache ./release/lib/gdk-pixbuf-2.0/2.10.0/
+```
+4. Get the appropriate Steam API DLL and place it in the same folder as the executable. Windows ones are located in `redistributable_bin/win64`
 
-4. Compile
+5. Compile
 ```
 gcc steam_idler.c -o release/si "redistributable_bin/win64/steam_api64.lib"
 gcc `pkg-config --cflags gtk+-3.0` ui.c -o release/idler `pkg-config --libs gtk+-3.0` -lregex -Wl,--export-all-symbols -mwindows
@@ -99,9 +104,13 @@ gcc `pkg-config --cflags gtk+-3.0` ui.c -o release/idler `pkg-config --libs gtk+
 
 Run `idler.exe`!
 
-If for some reason it does not open up, or it appears to crash after clicking "ADD GAME" you are probably missing a required DLL. It can be hard to debug which one it is, so refer back to the dependencies.txt file first.
 
-<p align="right">(<a href="#top">back to top</a>)</p>
+## Debugging
+If for some reason it does not open up, you are probably missing a DLL. If it appears to crash after clicking "ADD GAME" you probably have the wrong file structure for the image library.
+```
+.\release\lib\gdk-pixbuf-2.0\2.10.0\loaders.cache
+.\release\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-jpeg.dll
+```
 
 
 
@@ -111,8 +120,6 @@ After taking a break from dealing with building a GTK project...
 - [ ] Add linux support in creating/killing the new process (`ui.c`)
 - [ ] Re-format the add a game window/list
 - [ ] Get an app's name from its APP ID to make the application more user-friendly
-
-<p align="right">(<a href="#top">back to top</a>)</p>
 
 
 
