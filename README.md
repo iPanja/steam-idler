@@ -108,7 +108,6 @@ If for some reason it does not open up, or it appears to crash after clicking "A
 <!-- ROADMAP -->
 ## Roadmap
 After taking a break from dealing with building a GTK project...
-- [x] Cleanup library.c
 - [ ] Add linux support in creating/killing the new process (`ui.c`)
 - [ ] Re-format the add a game window/list
 - [ ] Get an app's name from its APP ID to make the application more user-friendly
