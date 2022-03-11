@@ -42,6 +42,7 @@ G_MODULE_EXPORT gboolean on_rbutton_enter_notify_event(GtkWidget *widget);
 G_MODULE_EXPORT gboolean on_rbutton_leave_notify_event(GtkWidget *widget);
 G_MODULE_EXPORT gboolean on_rbutton_click_event(GtkButton *self, gpointer user_data);
 gboolean on_timeout(gpointer user_data);
+gboolean on_window_main_destroy();
 
 
 //https://stackoverflow.com/questions/1636333/download-file-using-libcurl-in-c-c
@@ -80,7 +81,7 @@ void run_process(unsigned long app_id, guint event_source_id){
         STARTUPINFO si;
         PROCESS_INFORMATION pi;
         memset(&si, 0, sizeof(si));
-        si.cb = sizeof(si);
+        si.cb = sizeof(STARTUPINFO);
         memset(&pi, 0, sizeof(pi));
 
         if(!CreateProcess(
@@ -175,6 +176,8 @@ G_MODULE_EXPORT void on_mw_add_game_button_clicked(){
         add_game_window = GTK_WIDGET(gtk_builder_get_object(builder, "add_game_window"));
         add_game_entry = GTK_ENTRY(gtk_builder_get_object(builder, "add_game_entry"));
         gtk_builder_connect_signals(builder, NULL);
+        //gtk_window_set_destroy_with_parent(add_game_window, true);
+
         
         
         //Populate images
@@ -314,7 +317,7 @@ int main(int argc, char* argv[]){
 
         //Connect signals
         gtk_builder_connect_signals(builder, window);
-        g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gdk_window_destroy), GTK_WINDOW(window));
+        g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(on_window_main_destroy), NULL);
 
         g_object_unref(builder);
         gtk_widget_show(window);
@@ -326,14 +329,16 @@ int main(int argc, char* argv[]){
         return 0;
 }
 
-void on_window_main_destroy()
-{
+gboolean on_window_main_destroy()
+{       
         //Close all existing processes
         for(int i = 0; i < procs_size; i++){
-                close_process(&procs[i]);
+                close_process(&(procs[i]));
         }
         //Cleanup
         free(library);
         free(procs);
         gtk_main_quit();
+
+        return true;
 }
