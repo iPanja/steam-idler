@@ -2,6 +2,7 @@
 #include <gtk/gtk.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <time.h>
 
 #include <windows.h>
 #include <stdio.h>
@@ -16,6 +17,8 @@ information about itself. These macros are defined in config.mk*/
 typedef struct{
         unsigned long app_id;
         PROCESS_INFORMATION pi;
+        time_t start_time;
+        guint event_source_id;
         bool isActive;
 }IdleProcess, PtrIdleProcess;
 
@@ -38,6 +41,7 @@ const int rowCount = 3;
 G_MODULE_EXPORT gboolean on_rbutton_enter_notify_event(GtkWidget *widget);
 G_MODULE_EXPORT gboolean on_rbutton_leave_notify_event(GtkWidget *widget);
 G_MODULE_EXPORT gboolean on_rbutton_click_event(GtkButton *self, gpointer user_data);
+gboolean on_timeout(gpointer user_data);
 
 
 //https://stackoverflow.com/questions/1636333/download-file-using-libcurl-in-c-c
@@ -64,7 +68,7 @@ void set_icon(GtkImage *image, char *filepath){
         //Default icon size is 32x32 pixels
         set_image(image, filepath, 32, 32);
 }
-void run_process(unsigned long app_id){
+void run_process(unsigned long app_id, guint event_source_id){
         //Allocate space in *procs
         IdleProcess *temp = realloc(procs, ++procs_size * sizeof(IdleProcess));
         procs = temp;
@@ -99,6 +103,8 @@ void run_process(unsigned long app_id){
         IdleProcess *proc = malloc(sizeof(PtrIdleProcess));
         proc->app_id = app_id;
         proc->pi = pi;
+        proc->start_time = time(NULL);
+        proc->event_source_id = event_source_id;
         proc->isActive = true;
         procs[procs_size-1] = *proc;
 }
@@ -107,6 +113,8 @@ void close_process(IdleProcess *proc){
                 TerminateProcess(proc->pi.hProcess, 0);
                 CloseHandle(proc->pi.hProcess);
                 CloseHandle(proc->pi.hThread);
+                //Release time timer timeout
+                g_source_remove(proc->event_source_id);
                 proc->isActive = false;
         }
 }
@@ -140,6 +148,8 @@ void idle_game(unsigned long app_id){
                 unsigned long *s_app_id = malloc(sizeof(unsigned long));
                 *s_app_id = app_id;
                 g_signal_connect(G_OBJECT(overlay_button), "clicked", G_CALLBACK(on_rbutton_click_event), (gpointer) s_app_id);
+                //Periodically call a function to update the timer being displayed in the frame's label
+                guint event_source_id = g_timeout_add_seconds(1, on_timeout, frame);
 
                 //Add row to listbox (row object is automatically created with this method)
                 gtk_list_box_prepend(game_listbox, GTK_WIDGET(overlay));
@@ -148,11 +158,13 @@ void idle_game(unsigned long app_id){
                 gtk_widget_show(GTK_WIDGET(hero_image));
                 gtk_widget_show(GTK_WIDGET(overlay));
                 gtk_widget_show(GTK_WIDGET(overlay_button));
+
+                //Start new process to idle game
+                run_process(app_id, event_source_id); //Auto registers it in the static global variable, procs
         }else{
                 printf("Could NOT get game hero\n");
+                return;
         }
-        //Start new process to idle game
-        run_process(app_id); //Auto registers it in the static global variable, procs
 }
 
 // EVENT LISTENERS
@@ -216,8 +228,6 @@ G_MODULE_EXPORT gboolean on_rbutton_leave_notify_event(GtkWidget *widget){
 G_MODULE_EXPORT gboolean on_rbutton_click_event(GtkButton *self, gpointer user_data){
         //Remove from UI
         unsigned long app_id = *((unsigned long *) user_data);
-        //Remove the ListBoxRow (the parent of the button passed as red->widget)
-        gtk_widget_destroy(GTK_WIDGET(gtk_widget_get_parent(GTK_WIDGET(self))));
 
         //End process
         //Loop through all processes and close the ones with the matching app_id
@@ -228,8 +238,61 @@ G_MODULE_EXPORT gboolean on_rbutton_click_event(GtkButton *self, gpointer user_d
                 }
         }
 
+        //Remove the ListBoxRow (the parent of the button passed as red->widget)
+        gtk_widget_destroy(GTK_WIDGET(gtk_widget_get_parent(GTK_WIDGET(self))));
+
         //Cleanup
         free(user_data); //Was originally malloced
+}
+
+gboolean on_timeout(gpointer user_data){
+        //Get frame to update
+        GtkFrame *frame = GTK_FRAME(user_data);
+
+        //Extract APP ID from frame's label
+        const char *frame_label = gtk_frame_get_label(frame);
+        char label[32];
+        strcpy(label, frame_label);
+        strtok(label, " ");
+        unsigned long app_id = strtoul(strtok(NULL, " "), NULL, 0); //After already calling strtok once, this second call will return the app_id (as a string)
+
+        //Locate the frame's corresponding IdleProcess to find its start time and calculate the idle duration
+        double duration;
+        for(int i = 0; i < procs_size; i++){
+                if(procs[i].isActive && procs[i].app_id == app_id)
+                        duration = difftime(time(NULL), procs[i].start_time);
+        }
+
+        //Update the frame's label with the new idle duration
+        char new_label[32];
+        snprintf(new_label, sizeof(new_label), "Game: %lu (%02d:%02d:%02d)", app_id, (int) duration/3600, ((int) duration/60) % 60, (int) duration % 60);
+        gtk_frame_set_label(frame, new_label);
+
+        return true;
+        
+        /*
+        time_t now = time(NULL);
+        //Find number of active processes
+        int active_no = 0;
+        for(int i = 0; i < procs_size; i++){
+                if(procs[i].isActive)
+                        active_no++;
+        }
+
+        //Loop through listbox and update timers
+        for(int i = 0; i < active_no; i++){
+                //Get frame and the label containing that row's APP ID get_row_at_index
+                GtkWidget *row = GTK_WIDGET(gtk_list_box_get_row_at_index(game_listbox, i));
+                GtkWidget  *overlay = GTK_WIDGET(&(gtk_container_get_children(GTK_CONTAINER(row))[0]));
+                GtkWidget *frame = GTK_WIDGET(&(gtk_container_get_children(GTK_CONTAINER(overlay))[0]));
+                const char *frame_label = gtk_frame_get_label(GTK_FRAME(frame));
+                char time_str[32];
+                snprintf(time_str, sizeof(time_str), "%ld", now);
+                
+                gtk_frame_set_label(GTK_FRAME(frame), time_str);
+        }
+        */
+        
 }
 
 int main(int argc, char* argv[]){
@@ -265,12 +328,12 @@ int main(int argc, char* argv[]){
 
 void on_window_main_destroy()
 {
-        free(library);
         //Close all existing processes
         for(int i = 0; i < procs_size; i++){
                 close_process(&procs[i]);
         }
+        //Cleanup
+        free(library);
         free(procs);
         gtk_main_quit();
-        g_application_quit(G_APPLICATION(window));
 }

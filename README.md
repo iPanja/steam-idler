@@ -24,7 +24,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/iPanja/steam-idler">
-    <img src="moon.png" alt="Logo" width="80" height="80">
+    <img src="images/moon.png" alt="Logo" width="80" height="80">
   </a>
 
 <h3 align="center">Steam Idler</h3>
@@ -46,7 +46,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 <div align="center">
-    <img src="screencap.png" alt="Screenshot of application">
+    <img src="images/screencap2.png" alt="Screenshot of application">
 </div>
 
 <p align="right">(<a href="#top">back to top</a>)</p>
