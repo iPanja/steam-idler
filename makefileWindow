@@ -2,6 +2,7 @@
 #For release (to hide the cmd prompt window) use -mwindows
 #ldd release/idler.exe | grep '\/mingw.*\.dll' -o | xargs -I{} cp "{}" ./release/bin/
 #ldd release/idler.exe | grep '\/mingw64\/bin\/.*dll' -o | xargs -I{} cp "{}" ./release/bin/
+#for file in `cat dependencies.txt`; do mkdir -p ".\release\bin" && cp "$$file" ./release/bin/; done
 
 CC=gcc
 CFLAGS = `pkg-config --cflags gtk+-3.0`
@@ -13,5 +14,8 @@ steam_idler: steam_idler.c ui.c
 	cp ./redistributable_bin/win64/* ./release/
 	cp ui.glade ./release/
 	gcc steam_idler.c -o release/si "redistributable_bin/win64/steam_api64.lib"
-	gcc $(CFLAGS) ui.c -o release/idler $(INC) -Wl,--export-all-symbols -mwindows
-	for file in `cat dependencies.txt`; do mkdir -p ".\release\bin" && cp "$$file" ./release/bin/; done
+	gcc $(CFLAGS) ui.c -o release/idler $(INC) -Wl,--export-all-symbols
+	for file in `cat dependencies.txt`; do cp "$$file" ./release/; done
+	mkdir -p .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders
+	cp ./release/libpixbufloader-jpeg.dll ./release/lib/gdk-pixbuf-2.0/2.10.0/loaders/
+	cp ./release/loaders.cache ./release/lib/gdk-pixbuf-2.0/2.10.0/

@@ -41,4 +41,5 @@ C:\msys64\mingw64\bin\libdatrie-1.dll
 C:\msys64\mingw64\bin\libbrotlicommon.dll
 
 C:\msys64\mingw64\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-jpeg.dll
+C:\msys64\mingw64\lib\gdk-pixbuf-2.0\2.10.0\loaders.cache
 C:\msys64\mingw64\bin\libjpeg-8.dll
