@@ -54,14 +54,17 @@
 <!-- GETTING STARTED -->
 ## Getting Started
 
-After a couple gruesome hours, I have figured out to compile a GTK+ project.
-To install GTK in the first place, follow [these](https://www.gtk.org/docs/installations/windows) instructions.
+### Windows
+Download the newest release (or build) and launch `idler.exe`. The program will automatically scan your steam library allowing you to choose what games to idle in the "ADD GAME" menu. Your selected games will idle until you either remove them (by clicking on the game's artwork as seen in the picture above) or close the program.
 
-Currently, the UI will only compile/work on Windows machines. UNIX users can run the steam-idler (`./si` executable) from the command-line using: `./si <app_id> <duration>`. Duration can be set to `-1` to run forever.
+### UNIX
+
+Currently, the UI will only compile/work on Windows machines. To individually idle games you can use the `./si` application from the command line: `./si <app_id> <duration (seconds)>`. _Setting the duration to `-1` will run the game forever._
+
 
 ### Prerequisites
 
-After following the aforementioned instructions with MSYS2, all the prerequisites should be installed. If the program appears to crash at any point, it is probably due to a missing DLL (goodluck).
+To install GTK in the first place, follow [these](https://www.gtk.org/docs/installations/windows) instructions. If you are on windows be sure to install MSYS2. If the program appears to crash at any point, it is probably due to a missing DLL (goodluck).
 
 ### Build
 #### Using the makefile
