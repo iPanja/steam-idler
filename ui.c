@@ -7,9 +7,12 @@
 #include <windows.h>
 #include <stdio.h>
 #include <tchar.h>
+#include <tlhelp32.h>
+#include <processthreadsapi.h>
 
 #include "library.c"
 
+__declspec(dllimport) BOOL __cdecl SteamAPI_Init(); //Windows import
 
 /* The macros VERSION, NAME, TARGET, AUTHOR and COPYRIGHT are available for this program to reference
 information about itself. These macros are defined in config.mk*/
@@ -20,6 +23,7 @@ typedef struct{
         time_t start_time;
         guint event_source_id;
         bool isActive;
+        bool isRelaunching;
 }IdleProcess, PtrIdleProcess;
 
 static GtkWidget*  window;
@@ -27,6 +31,8 @@ static GtkImage *game1_image;
 static GtkBox *game_box;
 static GtkEntry *add_game_entry;
 static GtkListBox *game_listbox;
+static GtkLabel *steam_status_label;
+static bool lost_steam_connection;
 GtkWidget *add_game_window;
 
 static IdleProcess *procs = NULL;
@@ -51,6 +57,46 @@ size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream) {
     return written;
 }
 
+//https://stackoverflow.com/questions/13179410/check-whether-one-specific-process-is-running-on-windows-with-chttps://stackoverflow.com/questions/13179410/check-whether-one-specific-process-is-running-on-windows-with-c
+DWORD FindProcessId(char* processName)
+{
+    // strip path
+
+    char* p = strrchr(processName, '\\');
+    if(p)
+        processName = p+1;
+
+    PROCESSENTRY32 processInfo;
+    processInfo.dwSize = sizeof(processInfo);
+
+    HANDLE processesSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if ( processesSnapshot == INVALID_HANDLE_VALUE )
+        return 0;
+
+    Process32First(processesSnapshot, &processInfo);
+    if ( !strcmp(processName, processInfo.szExeFile) )
+    {
+        CloseHandle(processesSnapshot);
+        return processInfo.th32ProcessID;
+    }
+
+    while ( Process32Next(processesSnapshot, &processInfo) )
+    {
+        if ( !strcmp(processName, processInfo.szExeFile) )
+        {
+          CloseHandle(processesSnapshot);
+          return processInfo.th32ProcessID;
+        }
+    }
+
+    CloseHandle(processesSnapshot);
+    return 0;
+}
+
+bool is_steam_connected(){
+        return FindProcessId("steam.exe") != 0;
+}
+
 void set_image(GtkImage *image, char *filepath, int width, int height){
         //Load image into GtkImage
         GError *error = NULL;
@@ -69,12 +115,7 @@ void set_icon(GtkImage *image, char *filepath){
         //Default icon size is 32x32 pixels
         set_image(image, filepath, 32, 32);
 }
-void run_process(unsigned long app_id, guint event_source_id){
-        //Allocate space in *procs
-        IdleProcess *temp = realloc(procs, ++procs_size * sizeof(IdleProcess));
-        procs = temp;
-
-        //Create new process (WINDOWS)
+bool _create_process(unsigned long app_id, PROCESS_INFORMATION *process_information){
         char cmd[32];
         snprintf(cmd, sizeof(cmd), "si.exe %lu -1", app_id);
 
@@ -84,7 +125,7 @@ void run_process(unsigned long app_id, guint event_source_id){
         si.cb = sizeof(STARTUPINFO);
         memset(&pi, 0, sizeof(pi));
 
-        if(!CreateProcess(
+        if(CreateProcess(
                 NULL,
                 cmd,
                 NULL,
@@ -96,7 +137,21 @@ void run_process(unsigned long app_id, guint event_source_id){
                 &si,
                 &pi)
         ){
-                printf("Failed to create idle process (%d)\n", GetLastError());
+                *process_information = pi;
+                return true;
+        }
+        return false;
+}
+
+void run_process(unsigned long app_id, guint event_source_id){
+        //Allocate space in *procs
+        IdleProcess *temp = realloc(procs, ++procs_size * sizeof(IdleProcess));
+        procs = temp;
+
+        //Create new process (WINDOWS)
+        PROCESS_INFORMATION pi;
+        if(!_create_process(app_id, &pi)){
+                printf("Failed to create process for APP ID: %lu\n", app_id);
                 return;
         }
 
@@ -107,6 +162,7 @@ void run_process(unsigned long app_id, guint event_source_id){
         proc->start_time = time(NULL);
         proc->event_source_id = event_source_id;
         proc->isActive = true;
+        proc->isRelaunching = false;
         procs[procs_size-1] = *proc;
 }
 void close_process(IdleProcess *proc){
@@ -165,6 +221,20 @@ void idle_game(unsigned long app_id){
         }else{
                 printf("Could NOT get game hero\n");
                 return;
+        }
+}
+void relaunch_idler(IdleProcess *proc){
+         //Close existing idler process
+        TerminateProcess(proc->pi.hProcess, 0);
+        CloseHandle(proc->pi.hProcess);
+        CloseHandle(proc->pi.hThread);
+        //Create new idler process for the same APP ID
+        _create_process(proc->app_id, &(proc->pi)); //Attach process to existing IdleProcess instance
+        proc->start_time = time(NULL); //Reset the timer
+}
+void relaunch_idlers(){
+        for(int i = 0; i < procs_size; i++){
+                relaunch_idler(&(procs[i]));
         }
 }
 
@@ -248,7 +318,25 @@ G_MODULE_EXPORT gboolean on_rbutton_click_event(GtkButton *self, gpointer user_d
         free(user_data); //Was originally malloced
 }
 
+gboolean attempt_idler_relaunch(gpointer user_data){
+        printf("Attempting to relaunch process now\n");
+        IdleProcess *proc = (IdleProcess *) user_data;
+
+        if(is_steam_connected()){
+                relaunch_idler(proc);
+                proc->isRelaunching = false;
+        }else{
+                //Dont requeue this method, it should be called in the future
+        }
+        return false; //This method should only be run once, returning false will cancel subsequent attempted calls
+}
+
 gboolean on_timeout(gpointer user_data){
+        //If steam connection has been lost, do not update timer display
+        if(lost_steam_connection)
+                return true; //Returning false would cancel subsequent on_timeout calls, we still want to wait for the chance they relaunch Steam
+        
+        
         //Get frame to update
         GtkFrame *frame = GTK_FRAME(user_data);
 
@@ -259,11 +347,27 @@ gboolean on_timeout(gpointer user_data){
         strtok(label, " ");
         unsigned long app_id = strtoul(strtok(NULL, " "), NULL, 0); //After already calling strtok once, this second call will return the app_id (as a string)
 
+
         //Locate the frame's corresponding IdleProcess to find its start time and calculate the idle duration
         double duration;
         for(int i = 0; i < procs_size; i++){
-                if(procs[i].isActive && procs[i].app_id == app_id)
+                if(procs[i].isActive && procs[i].app_id == app_id){
                         duration = difftime(time(NULL), procs[i].start_time);
+
+                        //Double check and make sure that the process is still running
+                        //This case would probably fail if we re-started an idler process before Steam fully initialized
+                        //If an idler process (si.exe) fails to connect to Steam (SteamAPI_INIT fails), the process will close
+                        DWORD lpExitCode = 0;
+                        //If the app is supposed to be running (isActive) but we receive an error while checking the process' status, relaunch it soon (AND IDLER IS NOT CURRENTLY BEING RELAUNCHED)
+                        printf("Checking status...\n");
+                        if(!procs[i].isRelaunching && (GetExitCodeProcess(procs[i].pi.hProcess, &lpExitCode) == 0 || lpExitCode != STILL_ACTIVE)){
+                                //Attempt relaunch in 10 seconds
+                                printf("Last error: %ld\n", GetLastError());
+                                printf("Exit Code: %ld\n", lpExitCode);
+                                procs[i].isRelaunching = true;
+                                g_timeout_add_seconds(10, attempt_idler_relaunch, &procs[i]);
+                        }
+                }
         }
 
         //Update the frame's label with the new idle duration
@@ -272,30 +376,28 @@ gboolean on_timeout(gpointer user_data){
         gtk_frame_set_label(frame, new_label);
 
         return true;
-        
-        /*
-        time_t now = time(NULL);
-        //Find number of active processes
-        int active_no = 0;
-        for(int i = 0; i < procs_size; i++){
-                if(procs[i].isActive)
-                        active_no++;
-        }
+}
+gboolean on_timeout_steam_status(){
+        printf("Checking steam status...\n");
+        GtkStyleContext *ctx = gtk_widget_get_style_context(GTK_WIDGET(steam_status_label));
+        if(is_steam_connected()){
+                gtk_label_set_label(steam_status_label, "Steam connected!");
+                gtk_style_context_remove_class(ctx, "redLabelStyle");
+                gtk_style_context_add_class(ctx, "greenLabelStyle");
 
-        //Loop through listbox and update timers
-        for(int i = 0; i < active_no; i++){
-                //Get frame and the label containing that row's APP ID get_row_at_index
-                GtkWidget *row = GTK_WIDGET(gtk_list_box_get_row_at_index(game_listbox, i));
-                GtkWidget  *overlay = GTK_WIDGET(&(gtk_container_get_children(GTK_CONTAINER(row))[0]));
-                GtkWidget *frame = GTK_WIDGET(&(gtk_container_get_children(GTK_CONTAINER(overlay))[0]));
-                const char *frame_label = gtk_frame_get_label(GTK_FRAME(frame));
-                char time_str[32];
-                snprintf(time_str, sizeof(time_str), "%ld", now);
-                
-                gtk_frame_set_label(GTK_FRAME(frame), time_str);
+                //We have connection to steam now, if we previously lost it then relaunch all idlers
+                if(lost_steam_connection){
+                        relaunch_idlers();
+                        lost_steam_connection = false;
+                }
+        }else{
+                gtk_label_set_label(steam_status_label, "Steam not connected!");
+                gtk_style_context_remove_class(ctx, "greenLabelStyle");
+                gtk_style_context_add_class(ctx, "redLabelStyle");
+
+                lost_steam_connection = true;
         }
-        */
-        
+        return true;
 }
 
 int main(int argc, char* argv[]){
@@ -310,10 +412,20 @@ int main(int argc, char* argv[]){
         game1_image = GTK_IMAGE(gtk_builder_get_object(builder, "game1_image"));
         game_box = GTK_BOX(gtk_builder_get_object(builder, "game_box"));
         game_listbox = GTK_LIST_BOX(gtk_builder_get_object(builder, "game_listbox"));
+        steam_status_label = GTK_LABEL(gtk_builder_get_object(builder, "steam_status_label"));
         get_installed_app_ids(&library, &library_size); //Load games
         
         //Event mask
         gtk_widget_add_events(GTK_WIDGET(window), GDK_ALL_EVENTS_MASK);
+
+        //Set CSS
+        GtkCssProvider *provider = gtk_css_provider_new();
+        gtk_css_provider_load_from_path(provider, "main.css", NULL);
+        gtk_style_context_add_provider_for_screen (gdk_screen_get_default(), GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_USER);
+
+        //Periodically check if steam is connected properly
+        on_timeout_steam_status();
+        g_timeout_add_seconds(10, on_timeout_steam_status, NULL);
 
         //Connect signals
         gtk_builder_connect_signals(builder, window);

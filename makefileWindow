@@ -13,8 +13,9 @@ steam_idler: steam_idler.c ui.c
 	mkdir -p .\release
 	cp ./redistributable_bin/win64/* ./release/
 	cp ui.glade ./release/
+	cp main.css ./release/
 	gcc steam_idler.c -o release/si "redistributable_bin/win64/steam_api64.lib"
-	gcc $(CFLAGS) ui.c -o release/idler $(INC) -Wl,--export-all-symbols
+	gcc $(CFLAGS) ui.c -o release/idler $(INC) -Wl,--export-all-symbols "redistributable_bin/win64/steam_api64.lib"
 	for file in `cat dependencies.txt`; do cp "$$file" ./release/; done
 	mkdir -p .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders
 	cp ./release/libpixbufloader-jpeg.dll ./release/lib/gdk-pixbuf-2.0/2.10.0/loaders/
