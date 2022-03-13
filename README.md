@@ -33,7 +33,7 @@
     Automatically idle steam games in the background for card drops and hours played!
     <br />
     <br />
-    <a href="https://github.com/iPanja/steam-idler">View Demo</a>
+    <a href="https://github.com/iPanja/steam-idler/releases">View Releases</a>
     ·
     <a href="https://github.com/iPanja/steam-idler/issues">Report Bug</a>
     ·
