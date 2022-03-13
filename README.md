@@ -129,6 +129,7 @@ If for some reason it does not open up, you are probably missing a DLL. If it ap
 .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders.cache
 .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-jpeg.dll
 ```
+To show the console, remove the `-mwindows` flag when building `ui.c`.
 
 
 

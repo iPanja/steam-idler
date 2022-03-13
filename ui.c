@@ -166,7 +166,7 @@ void run_process(unsigned long app_id, guint event_source_id){
         procs[procs_size-1] = *proc;
 }
 void close_process(IdleProcess *proc){
-        if(proc->isActive){
+        if(proc->isActive || proc->isRelaunching){
                 TerminateProcess(proc->pi.hProcess, 0);
                 CloseHandle(proc->pi.hProcess);
                 CloseHandle(proc->pi.hThread);
