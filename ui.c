@@ -144,16 +144,17 @@ bool _create_process(unsigned long app_id, PROCESS_INFORMATION *process_informat
 }
 
 void run_process(unsigned long app_id, guint event_source_id){
-        //Allocate space in *procs
-        IdleProcess *temp = realloc(procs, ++procs_size * sizeof(IdleProcess));
-        procs = temp;
-
         //Create new process (WINDOWS)
         PROCESS_INFORMATION pi;
         if(!_create_process(app_id, &pi)){
                 printf("Failed to create process for APP ID: %lu\n", app_id);
                 return;
         }
+
+
+        //Allocate space in *procs
+        IdleProcess *temp = realloc(procs, ++procs_size * sizeof(IdleProcess));
+        procs = temp;
 
         //Append to proc array
         IdleProcess *proc = malloc(sizeof(PtrIdleProcess));

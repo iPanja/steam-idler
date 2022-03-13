@@ -147,6 +147,7 @@ After taking a break from dealing with building a GTK project...
 - [ ] Get an app's name from its APP ID to make the application more user-friendly
 - [ ] Cleanup the process of restarting idlers when the connection to Steam goes down
 - [ ] Transfer to a new UI library that requires less DLLs
+- [ ] Better error handling (display popup)
 
 
 
