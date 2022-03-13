@@ -83,14 +83,18 @@ The makefile will compile the entire project, bundle the GTK binaries (listed in
 ```
 for file in `cat dependencies.txt`; do cp "$$file" ./release/; done
 ```
-* If you modified the program, the DLLs you need might change so to get the dependencies yourself by using [ListDLLs](https://docs.microsoft.com/en-us/sysinternals/downloads/listdlls) while running the program and copy over any DLLs in `/msys2/mingw64/`. Files in `bin/` should be placed in the same directory as the executable (idler.exe) and `lib/` files should retain their structure and be nested properly. Example:
+* If you modified the program, you may need additional DLLs not present in the current dependencies file. To locate which dependencies you need, use [ListDLLs](https://docs.microsoft.com/en-us/sysinternals/downloads/listdlls) while running an instance of the program.
 ```
-.\tools\Listdlls.exe idler.exe > dependencies.txt #Locate dependencies
-.\release\lib\gdk-pixbuf-2.0\2.10.0\loaders.cache #Example of how to store libraries (\lib\*)
+.\tools\Listdlls.exe idler.exe > dependencies.txt #If this fails, substitute idler.exe with it's process id (pid) found in Task Manager > Details > idler.exe
+```
+* Files in `bin/` should be placed in the same directory as the executable (idler.exe)
+* Files in `lib/` should retain their file structure and be nested properly as seen below:
+```
+.\release\lib\gdk-pixbuf-2.0\2.10.0\loaders.cache #Example of how to store libraries (lib\*)
 .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-jpeg.dll
 ```
 
-3. Move the library files over into their proper structure (`lib/`)
+3. Move the library files over into their proper structure (`lib/`). Example:
 ```
 mkdir -p .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders
 cp ./release/libpixbufloader-jpeg.dll ./release/lib/gdk-pixbuf-2.0/2.10.0/loaders/
@@ -108,6 +112,8 @@ cp main.css ./release/main.css
 6. Compile
 * ui.c -> idler.exe (any name works, this is the main executable)
 * steam_idler.c -> si.exe (keep this name)
+
+_Remove the -mwindows flag if you want to see the console_
 ```
 gcc steam_idler.c -o release/si "redistributable_bin/win64/steam_api64.lib"
 gcc `pkg-config --cflags gtk+-3.0` ui.c -o release/idler `pkg-config --libs gtk+-3.0` -lregex -Wl,--export-all-symbols -mwindows
