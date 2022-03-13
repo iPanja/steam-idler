@@ -45,6 +45,10 @@
 
 <!-- ABOUT THE PROJECT -->
 ## About The Project
+### Features
+* Scans your steam library for all installed games
+* Can idle multiple games at once
+* Automatically restarts idlers if needed
 <div align="center">
     <img src="images/screencap2.png" alt="Screenshot of application">
 </div>
