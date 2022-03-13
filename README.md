@@ -62,29 +62,31 @@ Download the newest release (or build yourself) and launch `idler.exe`. The prog
 Currently, the UI will only compile/work on Windows machines. To individually idle games you can use the `./si` application from the command line: `./si <app_id> <duration (seconds)>`. _Setting the duration to `-1` will run the game forever._
 
 
+## Build
 ### Prerequisites
 
 To install GTK in the first place, follow [these](https://www.gtk.org/docs/installations/windows) instructions. If you are on windows be sure to install MSYS2. If the program appears to crash at any point, it is probably due to a missing DLL (goodluck).
 
-### Build
-#### Using the makefile
+### Using the makefile
 
 Running `make` will automatically run the appropriate platform-specific make file, however only the Windows makefile will compile the UI (UNIX support will be implemented in the future).
 
 The makefile will compile the entire project, bundle the GTK binaries (listed in dependencies.txt), and copy over the Steam API dll/lib into the subfolder: `release/`.
 
-#### Build yourself
-1. Get the required DLLs (default: dependencies.txt) using [ListDLLs](https://docs.microsoft.com/en-us/sysinternals/downloads/listdlls) in **POWERSHELL**
-* If this does not work, after launching the program get it's process ID via task manager and supply that number instead of `idler.exe`
-```
-.\tools\Listdlls.exe idler.exe > dependencies.txt
-```
-2. Copy the required DLLs over
-* This step also copies over some library files
+### Build yourself
+1. Get the required DLLs (both `bin/` and `lib/`)
+* The file `dependencies.txt` contains the paths to all required DLLs for the UI (GTK+) that the current version of the program uses. To copy them over into the release folder:
 ```
 for file in `cat dependencies.txt`; do cp "$$file" ./release/; done
 ```
-3. Move the library files over into their proper structure
+* If you modified the program, the DLLs you need might change so to get the dependencies yourself by using [ListDLLs](https://docs.microsoft.com/en-us/sysinternals/downloads/listdlls) while running the program and copy over any DLLs in `/msys2/mingw64/`. Files in `bin/` should be placed in the same directory as the executable (idler.exe) and `lib/` files should retain their structure and be nested properly. Example:
+```
+.\tools\Listdlls.exe idler.exe > dependencies.txt #Locate dependencies
+.\release\lib\gdk-pixbuf-2.0\2.10.0\loaders.cache #Example of how to store libraries (\lib\*)
+.\release\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-jpeg.dll
+```
+
+3. Move the library files over into their proper structure (`lib/`)
 ```
 mkdir -p .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders
 cp ./release/libpixbufloader-jpeg.dll ./release/lib/gdk-pixbuf-2.0/2.10.0/loaders/
@@ -92,7 +94,16 @@ cp ./release/loaders.cache ./release/lib/gdk-pixbuf-2.0/2.10.0/
 ```
 4. Get the appropriate Steam API DLL and place it in the same folder as the executable. Windows ones are located in `redistributable_bin/win64`
 
-5. Compile
+5. Copy over the other required resources
+* main.css
+* ui.glade
+```
+cp ui.glade ./release/ui.glade
+cp main.css ./release/main.css
+```
+6. Compile
+* ui.c -> idler.exe (any name works, this is the main executable)
+* steam_idler.c -> si.exe (keep this name)
 ```
 gcc steam_idler.c -o release/si "redistributable_bin/win64/steam_api64.lib"
 gcc `pkg-config --cflags gtk+-3.0` ui.c -o release/idler `pkg-config --libs gtk+-3.0` -lregex -Wl,--export-all-symbols -mwindows
@@ -108,7 +119,7 @@ gcc `pkg-config --cflags gtk+-3.0` ui.c -o release/idler `pkg-config --libs gtk+
 Run `idler.exe`!
 
 
-## Debugging
+### Debugging
 If for some reason it does not open up, you are probably missing a DLL. If it appears to crash after clicking "ADD GAME" you probably have the wrong file structure for the image library.
 ```
 .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders.cache
@@ -123,6 +134,8 @@ After taking a break from dealing with building a GTK project...
 - [ ] Add linux support in creating/killing the new process (`ui.c`)
 - [ ] Re-format the add a game window/list
 - [ ] Get an app's name from its APP ID to make the application more user-friendly
+- [ ] Cleanup the process of restarting idlers when the connection to Steam goes down
+- [ ] Transfer to a new UI library that requires less DLLs
 
 
 
