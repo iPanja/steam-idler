@@ -9,14 +9,17 @@ CFLAGS = `pkg-config --cflags gtk+-3.0`
 INC = `pkg-config --libs gtk+-3.0` -lregex
 EX = -Wall -Wextra -g
 
-steam_idler: steam_idler.c ui.c
+idler: ui.c si
 	mkdir -p .\release
-	cp ./redistributable_bin/win64/* ./release/
+	gcc $(CFLAGS) ui.c -o release/$@ $(INC) -Wl,--export-all-symbols "redistributable_bin/win64/steam_api64.lib" -mwindows
 	cp ui.glade ./release/
 	cp main.css ./release/
-	gcc steam_idler.c -o release/si "redistributable_bin/win64/steam_api64.lib"
-	gcc $(CFLAGS) ui.c -o release/idler $(INC) -Wl,--export-all-symbols "redistributable_bin/win64/steam_api64.lib" -mwindows
 	for file in `cat dependencies.txt`; do cp "$$file" ./release/; done
 	mkdir -p .\release\lib\gdk-pixbuf-2.0\2.10.0\loaders
 	cp ./release/libpixbufloader-jpeg.dll ./release/lib/gdk-pixbuf-2.0/2.10.0/loaders/
 	cp ./release/loaders.cache ./release/lib/gdk-pixbuf-2.0/2.10.0/
+
+si: steam_idler.c
+	mkdir -p .\release
+	cp ./redistributable_bin/win64/* ./release/
+	gcc steam_idler.c -o release/$@ "redistributable_bin/win64/steam_api64.lib"
